@@ -3,7 +3,7 @@ import numpy as np
 
 from camera import RealSenseCamera
 from detector import ObjectDetector
-from distance import DistanceCalculator
+from coordinate import DistanceCalculator
 
 
 def main():
