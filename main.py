@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 from camera import RealSenseCamera
 from detector import ObjectDetector
@@ -22,15 +23,11 @@ def main():
             if color_frame is None or depth_frame is None:
                 continue
 
-            # Convert RealSense color frame to a NumPy image
-            color_image = (
-                __import__("numpy").asanyarray(color_frame.get_data())
-            )
+            color_image = np.asanyarray(color_frame.get_data())
 
-            # Detect objects
+            # Detect objects using YOLO
             objects = detector.detect(color_image)
 
-            # Display results
             for obj in objects:
                 name = obj["name"]
                 confidence = obj["confidence"]
@@ -38,14 +35,13 @@ def main():
                 x1, y1, x2, y2 = obj["bbox"]
                 center_x, center_y = obj["center"]
 
-                # Get RealSense distance
-                distance = distance_calculator.get_object_distance(
+                # Calculate 3D camera-relative position
+                position = distance_calculator.get_object_position(
                     depth_frame,
                     center_x,
                     center_y
                 )
 
-                # Draw bounding box
                 cv2.rectangle(
                     color_image,
                     (x1, y1),
@@ -54,31 +50,6 @@ def main():
                     2
                 )
 
-                if distance is not None:
-                    label = (
-                        f"{name} "
-                        f"{confidence:.2f} "
-                        f"{distance:.2f} m"
-                    )
-                else:
-                    label = (
-                        f"{name} "
-                        f"{confidence:.2f} "
-                        f"distance: N/A"
-                    )
-
-                # Draw label
-                cv2.putText(
-                    color_image,
-                    label,
-                    (x1, max(y1 - 10, 20)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2
-                )
-
-                # Draw center point
                 cv2.circle(
                     color_image,
                     (center_x, center_y),
@@ -87,11 +58,38 @@ def main():
                     -1
                 )
 
-            # Show camera footage
-            cv2.imshow("Object Distance", color_image)
+                if position is not None:
+                    x = position["x"]
+                    y = position["y"]
+                    z = position["z"]
 
-            ESC_KEY = 27
-            if cv2.waitKey(1) & 0xFF == ESC_KEY:
+                    label = (
+                        f"{name} {confidence:.2f} "
+                        f"X:{x:.2f} Y:{y:.2f} Z:{z:.2f}m"
+                    )
+
+                    print(
+                        f"{name}: "
+                        f"X={x:.3f}m, "
+                        f"Y={y:.3f}m, "
+                        f"Z={z:.3f}m"
+                    )
+                else:
+                    label = f"{name} {confidence:.2f} XYZ: N/A"
+
+                cv2.putText(
+                    color_image,
+                    label,
+                    (x1, max(y1 - 10, 20)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (0, 255, 0),
+                    2
+                )
+
+            cv2.imshow("Object 3D Position - Press ESC to exit", color_image)
+
+            if cv2.waitKey(1) & 0xFF == 27:
                 break
 
     finally:
