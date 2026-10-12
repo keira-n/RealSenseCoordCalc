@@ -11,7 +11,7 @@ class RealSenseCamera:
             width,
             height,
             rs.format.bgr8,
-            fps
+            fps,
         )
 
         self.config.enable_stream(
@@ -19,24 +19,49 @@ class RealSenseCamera:
             width,
             height,
             rs.format.z16,
-            fps
+            fps,
         )
 
+        # Align depth pixels to the color image geometry
         self.align = rs.align(rs.stream.color)
 
         self.profile = None
         self.depth_scale = None
+        self.started = False
 
     def start(self):
+        if self.started:
+            return
+
         self.profile = self.pipeline.start(self.config)
 
-        depth_sensor = self.profile.get_device().first_depth_sensor()
+        depth_sensor = (
+            self.profile.get_device().first_depth_sensor()
+        )
         self.depth_scale = depth_sensor.get_depth_scale()
+        self.started = True
 
         print(f"Depth scale: {self.depth_scale} meters")
 
+        # Debugging the actual camera configuration
+        for stream in self.profile.get_streams():
+            video = stream.as_video_stream_profile()
+            print(
+                f"Stream: {stream.stream_type()}, "
+                f"resolution: {video.width()}x{video.height()}"
+            )
+
     def get_frames(self):
-        frames = self.pipeline.wait_for_frames()
+        if not self.started:
+            raise RuntimeError("Camera has not been started")
+
+        try:
+            frames = self.pipeline.wait_for_frames(
+                timeout_ms=5000
+            )
+        except RuntimeError as exc:
+            print(f"Frame acquisition failed: {exc}")
+            return None, None
 
         aligned_frames = self.align.process(frames)
 
@@ -49,7 +74,27 @@ class RealSenseCamera:
         return color_frame, depth_frame
 
     def get_distance(self, depth_frame, x, y):
-        return depth_frame.get_distance(x, y)
+        if depth_frame is None:
+            return None
+
+        width = depth_frame.get_width()
+        height = depth_frame.get_height()
+
+        if not (0 <= x < width and 0 <= y < height):
+            return None
+
+        distance = depth_frame.get_distance(int(x), int(y))
+
+        if distance <= 0:
+            return None
+
+        return distance
 
     def stop(self):
-        self.pipeline.stop()
+        if self.started:
+            try:
+                self.pipeline.stop()
+            finally:
+                self.started = False
+                self.profile = None
+                print("RealSense camera stopped")
