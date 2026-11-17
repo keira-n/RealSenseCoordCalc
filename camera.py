@@ -150,8 +150,16 @@ class RealSenseCamera:
         if distance is None:
             return None
 
+        # The depth frame has been aligned to the color stream. Use the
+        # intrinsics carried by that aligned depth frame so pixel coordinates
+        # and calibration belong to the same image geometry.
+        depth_intrinsics = (
+            depth_frame.profile
+            .as_video_stream_profile()
+            .intrinsics
+        )
         point = rs.rs2_deproject_pixel_to_point(
-            self.intrinsics,
+            depth_intrinsics,
             [float(x), float(y)],
             distance
         )

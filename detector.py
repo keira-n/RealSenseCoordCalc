@@ -8,6 +8,9 @@ class ObjectDetector:
     def detect(self, color_image, confidence=0.5,
                target_classes=None):
 
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError("confidence must be between 0.0 and 1.0")
+
         results = self.model(
             color_image,
             conf=confidence,

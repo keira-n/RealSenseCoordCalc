@@ -5,7 +5,9 @@ import pyrealsense2 as rs
 class DistanceCalculator:
 
     def __init__(self, sample_radius=5):
-        self.sample_radius = sample_radius
+        if sample_radius < 0:
+            raise ValueError("sample_radius must be >= 0")
+        self.sample_radius = int(sample_radius)
 
     def get_object_position(
             self,
